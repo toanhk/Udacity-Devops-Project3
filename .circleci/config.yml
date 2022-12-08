@@ -344,37 +344,30 @@ jobs:
           at: ~/
       - run:
           name: Install dependencies
+          working_directory: /tmp
           command: |
-            apk update
-            apk add --update ansible
-            apk add --no-cache tar npm gzip curl gcompat
-            apk add --no-cache python3 py3-pip
-            pip3 install --upgrade pip
-            pip3 install awscli
-            rm -rf /var/cache/apk/*
-            echo "Test aws cli version"
+            apk add --update ansible curl rsync openssh nodejs npm
+            ansible --version
+            pip install awscli
             aws --version
-            which aws
       - run:
           name: Build backend
           command: |
-            sed 's/local/production/g' ~/project/backend/.env
             cd backend
-            npm install
-            echo "--- Backend variables ---"
-            cat ~/project/backend/.env
+            npm i
             npm run build
-      - run:
-          name: Create backend artifact
-          command: |
-            tar czf backend-artifact.tar.gz backend
-      - run:
+            ls
+            pwd
+            cd .. 
+            tar -C backend -czvf artifact.tar.gz .      
+      - run:      
           name: Deploy backend
+          working_directory: ./.circleci/ansible
           command: |
-            echo "Contents of the inventory.txt file is:"
-            cat ~/project/.circleci/ansible/inventory.txt
-            ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
-            
+
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml
+
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - destroy-environment  
