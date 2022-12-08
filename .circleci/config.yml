@@ -248,41 +248,83 @@ jobs:
     
 
   deploy-frontend:
+    # docker:
+    #   - image: amazon/aws-cli
+    # steps:
+    #   - checkout
+    #   - attach_workspace:
+    #       at: ~/
+    #   - run:
+    #       name: Install dependencies
+    #       command: |
+    #         sudo apt install -y tar gzip curl unzip
+    #   - run:
+    #       name: Install aws-cli
+    #       command: |
+    #         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    #         unzip awscliv2.zip
+    #         sudo ./aws/install      
+    #   - run:
+    #       name: Get backend url
+    #       command: |
+    #         export BACKEND_IP=$(cat ~/project/.circleci/ansible/inventory.txt | sed 1d)
+    #         export API_URL="http://${BACKEND_IP}:3030"
+    #         echo "API_URL = ${API_URL}"
+    #         echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
+    #         cat frontend/.env
+    #   - run:
+    #       name: Deploy frontend objects
+    #       # `npm run build` one last time so that the backend url gets "baked" into the front-end.
+    #       command: |
+    #         cd frontend
+    #         npm install
+    #         npm run build
+    #         npm audit fix --force --audit-level=critical
+    #         tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+    #         aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
     docker:
       - image: amazon/aws-cli
     steps:
       - checkout
-      - attach_workspace:
-          at: ~/
       - run:
-          name: Install dependencies
+          name: Install dependencies Node
           command: |
-            sudo apt install -y tar gzip curl unzip
+            curl -sL https://rpm.nodesource.com/setup_13.x | bash -
+            yum -y install nodejs
+            node -v
       - run:
-          name: Install aws-cli
+          name: Install dependencies tar
           command: |
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install      
+            yum -y install tar
       - run:
-          name: Get backend url
+          name: Install dependencies gzip
           command: |
-            export BACKEND_IP=$(cat ~/project/.circleci/ansible/inventory.txt | sed 1d)
+            yum -y install gzip
+      - run:
+          name: Set env variables
+          command: |
+            # your code here also added filters
+            export BACKEND_IP=$(aws ec2 describe-instances \
+            --filters Name=tag:Name,Values="backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --output text)
             export API_URL="http://${BACKEND_IP}:3030"
-            echo "API_URL = ${API_URL}"
+            echo "${API_URL}"
             echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
             cat frontend/.env
       - run:
-          name: Deploy frontend objects
-          # `npm run build` one last time so that the backend url gets "baked" into the front-end.
+          name: Build frontend objects
           command: |
+            npm install webpack-dev-server -g
             cd frontend
-            npm install
+            npm i
             npm run build
             npm audit fix --force --audit-level=critical
             tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
-
+      - run:
+          name: Deploy frontend objects
+          command: |
+            aws s3 sync frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - destroy-environment 
@@ -332,6 +374,7 @@ jobs:
             echo "Contents of the inventory.txt file is:"
             cat ~/project/.circleci/ansible/inventory.txt
             ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
+            
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - destroy-environment  
