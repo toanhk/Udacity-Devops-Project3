@@ -241,6 +241,7 @@ jobs:
             else
               exit 1
             fi
+            
       - destroy-environment            
 
       - revert-migrations:
@@ -248,40 +249,6 @@ jobs:
     
 
   deploy-frontend:
-    # docker:
-    #   - image: amazon/aws-cli
-    # steps:
-    #   - checkout
-    #   - attach_workspace:
-    #       at: ~/
-    #   - run:
-    #       name: Install dependencies
-    #       command: |
-    #         sudo apt install -y tar gzip curl unzip
-    #   - run:
-    #       name: Install aws-cli
-    #       command: |
-    #         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    #         unzip awscliv2.zip
-    #         sudo ./aws/install      
-    #   - run:
-    #       name: Get backend url
-    #       command: |
-    #         export BACKEND_IP=$(cat ~/project/.circleci/ansible/inventory.txt | sed 1d)
-    #         export API_URL="http://${BACKEND_IP}:3030"
-    #         echo "API_URL = ${API_URL}"
-    #         echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
-    #         cat frontend/.env
-    #   - run:
-    #       name: Deploy frontend objects
-    #       # `npm run build` one last time so that the backend url gets "baked" into the front-end.
-    #       command: |
-    #         cd frontend
-    #         npm install
-    #         npm run build
-    #         npm audit fix --force --audit-level=critical
-    #         tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
-    #         aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
     docker:
       - image: amazon/aws-cli
     steps:
@@ -331,7 +298,7 @@ jobs:
                     
   deploy-backend:
     docker:
-      - image: python:3.7-alpine3.11
+      - image: cimg/python:3.10.6
     steps:
       # Checkout code from git
       - checkout
@@ -344,14 +311,27 @@ jobs:
           at: ~/
       - run:
           name: Install dependencies
-          working_directory: /tmp
           command: |
-            apk add --update ansible curl rsync openssh nodejs npm
-            ansible --version
-            pip install awscli
-            aws --version
+            python3 -m pip install --user ansible
+            sudo apt update
+            sudo apt install nodejs
+            sudo apt install npm
       - run:
-          name: Build backend
+          name: Add env vars to env file
+          command: |
+            echo "NODE_ENV=production" >> backend/.env
+            echo "VERSION=1" >> backend/.env
+            echo "TYPEORM_CONNECTION=${TYPEORM_CONNECTION}" >> backend/.env
+            echo "TYPEORM_MIGRATIONS_DIR=${TYPEORM_MIGRATIONS_DIR}" >> backend/.env
+            echo "TYPEORM_ENTITIES=${TYPEORM_ENTITIES}" >> backend/.env
+            echo "TYPEORM_MIGRATIONS=${TYPEORM_MIGRATIONS}" >> backend/.env
+            echo "TYPEORM_HOST=${TYPEORM_HOST}" >> backend/.env
+            echo "TYPEORM_PORT=${TYPEORM_PORT}" >> backend/.env
+            echo "TYPEORM_USERNAME=${TYPEORM_USERNAME}" >> backend/.env
+            echo "TYPEORM_PASSWORD=${TYPEORM_PASSWORD}" >> backend/.env
+            echo "TYPEORM_DATABASE=${TYPEORM_DATABASE}" >> backend/.env  
+      - run:
+          name: Deploy backend and run ansible
           command: |
             cd backend
             npm i
@@ -359,15 +339,11 @@ jobs:
             ls
             pwd
             cd .. 
-            tar -C backend -czvf artifact.tar.gz .      
-      - run:      
-          name: Deploy backend
-          command: |
-            export ANSIBLE_HOST_KEY_CHECKING=False
-            echo "Contents of the inventory.txt file is:"
-            cat ~/project/.circleci/ansible/inventory.txt
-            ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
+            tar -C backend -czvf artifact.tar.gz .
 
+            cd ~/project/.circleci/ansible
+            ansible-playbook -i inventory.txt deploy-backend.yml
+            sleep 30s
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - destroy-environment  
