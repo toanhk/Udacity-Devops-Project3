@@ -179,7 +179,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ["26:99:9e:d8:52:d9:43:bb:17:8a:ce:dd:76:92:d9:09"] 
+          fingerprints: ["d9:a4:27:3f:6d:87:6d:e6:4a:de:a1:45:bf:ef:c4:ec"] 
       - attach_workspace:
           at: ~/
       - run:
@@ -195,9 +195,9 @@ jobs:
           name: Configure server
           command: |
             cat ~/project/.circleci/ansible/inventory.txt
-            # ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
+            ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
 
-      # - destroy-environment
+      - destroy-environment
 
 #   run-migrations:
 #     docker:
