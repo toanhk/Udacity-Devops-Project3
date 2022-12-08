@@ -13,24 +13,25 @@ commands:
             aws cloudformation delete-stack --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}"
             aws cloudformation delete-stack --stack-name "udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}"
 
-#   revert-migrations:
-#     description: Revert the last migration if successfully run in the current workflow.
-#     parameters:
-#       # Add parameter here     
-#     steps:
-#       - run:
-#           name: Revert migrations
-#           # Add when this will run
-#           command: |
-#             # Curl command here to see if there was a successful migration associated with the workflow id, store result in SUCCESS variable
-#             SUCCESS = 1
-#             if(( $SUCCESS==1 )); 
-#             then
-#             #  cd ~/project/backend
-#             #  npm install
-#             #  Add revert code here. You can find this in the Getting Started section.
-#               exit 1
-#             fi
+  revert-migrations:
+    description: Revert the last migration if successfully run in the current workflow.
+    parameters:
+      workflow_id:
+        type: string
+    steps:
+      - restore_cache:
+          keys: [backend-build]
+      - run:
+          name: Revert migrations
+          when: on_fail
+          command: |
+            echo "insecure" >> ~/.curlrc
+            SUCCESS=$(curl --insecure  https://kvdb.io/2MTErbeyY1sCfufkM2J9yn/migration_<< parameters.workflow_id >>)
+            if (( $SUCCESS == 1 ));
+            then
+              cd backend
+              npm run migrations:revert
+            fi
             
 jobs:
   build-frontend:
@@ -200,22 +201,51 @@ jobs:
 
       - destroy-environment
 
-#   run-migrations:
-#     docker:
-#       # Docker image here that supports NodeJS
-#     steps:
-#       # Checkout code from git
-#       - run:
-#           name: Run migrations
-#           command: |
-#             # Your code here
-#             exit 1
-#       - run:
-#           name: Send migration results to memstash
-#           command: |
-#             # Your code here
-#             exit 1
-#      # Here's where you will add some code to rollback on failure      
+  run-migrations:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - run:
+          name: Create environment varibales
+          command: |
+            echo -e "NODE_ENV=local\nVERSION=1\nTYPEORM_CONNECTION=${TYPEORM_CONNECTION}\nTYPEORM_MIGRATIONS_DIR=${TYPEORM_MIGRATIONS_DIR}\nTYPEORM_ENTITIES=${TYPEORM_ENTITIES}\nTYPEORM_MIGRATIONS=${TYPEORM_MIGRATIONS}\nTYPEORM_HOST=${TYPEORM_HOST}\nTYPEORM_PORT=${TYPEORM_PORT}\nTYPEORM_USERNAME=${TYPEORM_USERNAME}\nTYPEORM_PASSWORD=${TYPEORM_PASSWORD}\nTYPEORM_DATABASE=${TYPEORM_DATABASE}" >> backend/.env
+      # Save env to backend project
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - project/backend/.env
+      - run:
+          name: Install aws-cli for destroy_environment step.
+          command: |
+            sudo apt install unzip curl
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
+            echo "AWS CLI version"
+            aws --version
+      - run:
+          name: Run migrations
+          command: |
+            cd backend
+            npm install
+            npm run migrations > migrations_dump.txt
+      - run:
+          name: Send migration results to kvdb.io
+          command: |
+            cat backend/migrations_dump.txt
+            if grep -q "has been executed successfully." backend/migrations_dump.txt
+            then
+              echo "insecure" >> ~/.curlrc
+              curl https://kvdb.io/2MTErbeyY1sCfufkM2J9yn/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+            else
+              exit 1
+            fi
+      - destroy_environment            
+      
+      - revert_migrations:
+          workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+    
 
 #   deploy-frontend:
 #     docker:
