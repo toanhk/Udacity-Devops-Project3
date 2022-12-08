@@ -216,7 +216,7 @@ jobs:
           paths:
             - project/backend/.env
       - run:
-          name: Install aws-cli for destroy_environment step.
+          name: Install aws-cli for destroy-environment step.
           command: |
             sudo apt install unzip curl
             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
@@ -241,7 +241,7 @@ jobs:
             else
               exit 1
             fi
-      - destroy_environment            
+      - destroy-environment            
 
       - revert_migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
@@ -285,7 +285,7 @@ jobs:
 
       - revert_migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
-      - destroy_environment 
+      - destroy-environment 
                     
   deploy-backend:
     docker:
@@ -334,7 +334,7 @@ jobs:
             ansible-playbook -i ~/project/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
       - revert_migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
-      - destroy_environment  
+      - destroy-environment  
 
 #   smoke-test:
 #     docker:
